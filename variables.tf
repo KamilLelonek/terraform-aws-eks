@@ -11,7 +11,7 @@ variable "project" {
 }
 
 variable "environment" {
-  description = "Deployment environment. Must match the env key used in K8s values files and SM secret paths (dev / prd)."
+  description = "Deployment environment. Must match the env key used in K8s values files (dev / prd)."
   type        = string
   default     = "dev"
 
@@ -43,9 +43,4 @@ variable "cluster_name" {
   description = "EKS cluster name. Must match the name registered in ArgoCD (argocd cluster add). Apply this module once per cluster with the correct name and a separate state key per environment."
   type        = string
   # Examples: dev-global-cluster-0, prd-global-cluster-5
-}
-
-variable "acme_email" {
-  description = "Email for Let's Encrypt ACME account registration. cert-manager sends certificate expiry warnings to this address."
-  type        = string
 }

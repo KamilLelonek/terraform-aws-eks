@@ -47,7 +47,7 @@ Traffic flows:
 | `compute.tf`               | EKS cluster, node group, OIDC provider, addons, CloudWatch log group          |
 | `database.tf`              | RDS instance, subnet group, write-only password                               |
 | `storage.tf`               | S3 bucket (versioned, private)                                                |
-| `addons.tf`                | Helm releases (nginx, cert-manager, ArgoCD) + CRD-backed K8s resources       |
+| `addons.tf`                | Helm releases: nginx ingress, cert-manager, ArgoCD                            |
 | `outputs.tf`               | kubectl config command, ArgoCD admin password, DB endpoint, S3 bucket name    |
 | `terraform.tfvars.example` | Copy to `terraform.tfvars` and fill in before running                         |
 
@@ -59,8 +59,7 @@ Traffic flows:
 - AWS CLI configured - `aws sts get-caller-identity` should succeed
 - AWS identity with permissions: `eks:*`, `ec2:*`, `rds:*`, `s3:*`, `iam:*`,
   `logs:*`, `elasticloadbalancing:*`
-- `aws` CLI available in `PATH` - used by the Helm and kubectl providers for
-  exec-based EKS auth (`aws eks get-token`)
+- `aws` CLI available in `PATH` - used by the Helm provider for EKS auth
 
 ### Bootstrap the state bucket (once, before first init)
 
@@ -118,9 +117,9 @@ terraform apply
 
 ## Post-deploy wiring
 
-`terraform apply` installs everything: EKS cluster, RDS, nginx, cert-manager,
-ArgoCD, and the ArgoCD Application that deploys the spring-boot-api. No manual Helm
-steps required.
+`terraform apply` provisions the infrastructure: EKS cluster, RDS, S3, nginx,
+cert-manager, and ArgoCD. ArgoCD config (ClusterIssuers, AppProject, ApplicationSet)
+is managed separately in the spring-boot-api repo.
 
 Configure kubectl after apply:
 
@@ -138,11 +137,19 @@ terraform output -raw argocd_admin_password | bash
 kubectl get svc argocd-server -n argocd
 ```
 
+Bootstrap ArgoCD config from the spring-boot-api repo:
+
+```bash
+kubectl apply -f ../spring-boot-api/argocd/argocd-project.yaml
+kubectl apply -f ../spring-boot-api/argocd/cluster-issuers.yaml
+kubectl apply -f ../spring-boot-api/argocd/applicationset.yaml
+```
+
 Watch the spring-boot-api sync:
 
 ```bash
 argocd login <argocd-server-ip>
-argocd app get spring-boot-api
+argocd app list
 ```
 
 ### Destroying the environment
@@ -197,15 +204,11 @@ Both dev and prd can be applied in the same AWS account without naming conflicts
 roles, RDS identifiers, or S3 buckets.
 
 **Helm add-ons in Terraform** - nginx, cert-manager, and ArgoCD are installed via
-`helm_release` resources rather than post-apply shell commands. This keeps the entire
-cluster in a single declarative apply. Trade-off: `terraform destroy` may fail if CRDs
-have finalizers on custom resources - delete the ArgoCD Application before destroying.
-
-**kubectl provider for CRD-backed resources** - `hashicorp/kubernetes` validates
-resource schemas at plan time, which fails for CRD-backed types (ClusterIssuer,
-Application) when the CRDs don't exist yet. `alekc/kubectl` defers validation to apply
-time, so CRD-backed resources can be created in the same apply as the Helm release that
-installs their CRDs.
+`helm_release` resources rather than post-apply shell commands. This keeps infrastructure
+in a single declarative apply. ArgoCD config (ClusterIssuers, AppProject, ApplicationSet)
+lives in the spring-boot-api repo: clear separation between infra and application setup.
+Trade-off: `terraform destroy` may fail if Helm releases have finalizers on custom
+resources - delete ArgoCD Applications before destroying.
 
 **In-cluster ArgoCD destination** - the ArgoCD Application uses
 `destination.server: https://kubernetes.default.svc` (the cluster ArgoCD runs on)

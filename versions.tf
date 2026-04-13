@@ -43,14 +43,6 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 3.1"
     }
-    # alekc/kubectl is the actively maintained fork of the archived gavinbunney/kubectl.
-    # Defers CRD schema validation to apply time so CRD-backed resources
-    # (ClusterIssuer, ClusterSecretStore, ArgoCD Application) can be created in the
-    # same apply as the Helm release that installs their CRDs.
-    kubectl = {
-      source  = "alekc/kubectl"
-      version = "~> 2.1"
-    }
   }
 }
 
@@ -72,11 +64,4 @@ provider "helm" {
     cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
     token                  = data.aws_eks_cluster_auth.main.token
   }
-}
-
-provider "kubectl" {
-  host                   = aws_eks_cluster.main.endpoint
-  cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.main.token
-  load_config_file       = false
 }

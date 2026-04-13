@@ -18,7 +18,6 @@ resource "aws_db_instance" "main" {
   username = var.db_username
 
   # Write-only password: generated locally, applied to RDS, never stored in state.
-  # Requires: random provider >= 3.7, AWS provider >= 5.80, Terraform >= 1.11.
   # To rotate: bump var.db_password_version (e.g. "v1" -> "v2") and re-apply.
   password_wo         = random_password.db.result_wo
   password_wo_version = var.db_password_version

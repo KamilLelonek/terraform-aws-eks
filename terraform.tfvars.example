@@ -12,6 +12,3 @@ db_username = "dbadmin"
 
 # Bump to rotate DB password without exposing it in state
 db_password_version = "v1"
-
-# cert-manager ClusterIssuer email - Let's Encrypt sends expiry warnings here
-acme_email = "platform@example.com"

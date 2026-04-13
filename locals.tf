@@ -9,10 +9,4 @@ locals {
     ManagedBy   = "terraform"
   }
 
-  # Helm chart revision for the ArgoCD Application.
-  # dev tracks HEAD for fast feedback; prd is pinned to a tag for explicit promotion.
-  chart_revision = var.environment == "prd" ? "v1.0.0" : "HEAD"
-
-  # Shared ACME HTTP-01 solver used by both ClusterIssuers (staging + prod).
-  acme_solver = [{ http01 = { ingress = { ingressClassName = "nginx" } } }]
 }
