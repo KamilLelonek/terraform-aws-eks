@@ -1,0 +1,17 @@
+region      = "eu-central-1"
+project     = "webapp"
+environment = "prd"
+
+# Apply once per cluster - use a separate state key per environment:
+#   backend "s3" { key = "webapp/dev/terraform.tfstate" }
+#   backend "s3" { key = "webapp/prd/terraform.tfstate" }
+cluster_name = "dev-global-cluster-0"  # or prd-global-cluster-5
+
+db_name     = "appdb"
+db_username = "dbadmin"
+
+# Bump to rotate DB password without exposing it in state
+db_password_version = "v1"
+
+# cert-manager ClusterIssuer email - Let's Encrypt sends expiry warnings here
+acme_email = "platform@example.com"
