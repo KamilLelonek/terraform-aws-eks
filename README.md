@@ -92,19 +92,18 @@ cp terraform.tfvars.example terraform.tfvars
 
 ### 2. Init with a per-environment state key
 
-Each environment needs its own state file. Pass the key at init time:
+Each environment has its own backend config file under `backends/`. Pass it at init time:
 
 ```bash
-# First environment (dev)
-terraform init -backend-config="key=webapp/dev/terraform.tfstate"
+# dev
+terraform init -backend-config=backends/dev.hcl
 
-# Switching to prd in the same directory - use -reconfigure to replace the backend config
-terraform init -reconfigure -backend-config="key=webapp/prd/terraform.tfstate"
+# prd (switching in the same directory - -reconfigure replaces the active backend)
+terraform init -reconfigure -backend-config=backends/prd.hcl
 ```
 
-> **Why separate keys?** Both environments share one S3 bucket but isolate their state
-> in different files. Using the same key would cause the second apply to overwrite the
-> first environment's state, silently destroying its resources on the next plan.
+Both environments share one S3 bucket but isolate state in separate keys. Using the same
+key would cause the second apply to overwrite the first environment's state.
 
 ### 3. Plan and apply
 

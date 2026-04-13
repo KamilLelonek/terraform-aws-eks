@@ -7,17 +7,15 @@ terraform {
   #   aws s3api put-bucket-versioning --bucket <name> \
   #     --versioning-configuration Status=Enabled
   #
-  # IMPORTANT: backend key cannot use variables. Use -backend-config per cluster:
-  #   terraform init -backend-config="key=webapp/dev/terraform.tfstate"
-  #   terraform init -backend-config="key=webapp/prd/terraform.tfstate"
-  # Using the same key for both applies causes the second apply to overwrite
-  # the first cluster's state, silently destroying it on the next plan.
+  # key is intentionally absent: it is supplied per environment via -backend-config.
+  # See backends/dev.hcl and backends/prd.hcl.
+  # Using the same key for two environments causes the second apply to overwrite
+  # the first environment's state, silently destroying its resources on the next plan.
   #
   # No DynamoDB locking - safe for single operator.
   # Add: dynamodb_table = "terraform-locks" for team concurrent use.
   backend "s3" {
     bucket  = "my-terraform-state-bucket" # replace
-    key     = "webapp/REPLACE_WITH_ENV/terraform.tfstate"
     region  = "eu-central-1"
     encrypt = true
   }
