@@ -8,11 +8,6 @@ output "argocd_admin_password" {
   value       = "kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d"
 }
 
-output "eso_role_arn" {
-  description = "IRSA role ARN attached to the ESO ServiceAccount at install time"
-  value       = aws_iam_role.eso.arn
-}
-
 output "db_endpoint" {
   description = "RDS writer endpoint - used in DB_HOST app config"
   value       = aws_db_instance.main.address

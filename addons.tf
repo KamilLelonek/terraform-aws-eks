@@ -1,7 +1,7 @@
 # --- Kubernetes add-ons ---
 # Installed via Helm into the EKS cluster created in compute.tf.
 # wait = true blocks Terraform until each release is healthy before moving on,
-# so CRD-backed resources (ClusterIssuer, ClusterSecretStore) are applied only
+# so CRD-backed resources (ClusterIssuer, Application) are applied only
 # after their CRDs exist.
 
 # --- nginx Ingress Controller ---
@@ -85,53 +85,6 @@ resource "kubectl_manifest" "cluster_issuer_prod" {
   depends_on = [helm_release.cert_manager]
 }
 
-# --- External Secrets Operator ---
-# serviceAccount.annotations injects the IRSA role ARN at chart install time.
-# Pods start with the correct IRSA token mounted - no post-install annotation
-# or rollout restart required.
-resource "helm_release" "external_secrets" {
-  name             = "external-secrets"
-  repository       = "https://charts.external-secrets.io"
-  chart            = "external-secrets"
-  version          = "0.10.5"
-  namespace        = "external-secrets"
-  create_namespace = true
-  wait             = true
-  timeout          = 600
-
-  # helm v3: set is now a list of objects, not a block
-  set = [{
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.eso.arn
-  }]
-
-  depends_on = [aws_eks_node_group.main, aws_iam_role.eso]
-}
-
-# ClusterSecretStore: tells ESO which AWS region to use and how to authenticate.
-# jwt auth = IRSA - ESO exchanges the pod's ServiceAccount JWT for temporary
-# AWS credentials via STS. No long-lived access keys stored anywhere.
-resource "kubectl_manifest" "cluster_secret_store" {
-  yaml_body = <<-YAML
-    apiVersion: external-secrets.io/v1beta1
-    kind: ClusterSecretStore
-    metadata:
-      name: aws-secrets-manager
-    spec:
-      provider:
-        aws:
-          service: SecretsManager
-          region: ${var.region}
-          auth:
-            jwt:
-              serviceAccountRef:
-                name: external-secrets
-                namespace: external-secrets
-  YAML
-
-  depends_on = [helm_release.external_secrets]
-}
-
 # --- ArgoCD ---
 resource "helm_release" "argocd" {
   name             = "argocd"
@@ -175,9 +128,9 @@ resource "kubectl_manifest" "argocd_project" {
 # destination.server = https://kubernetes.default.svc means "the cluster ArgoCD
 # itself runs on" - no argocd cluster add registration step required.
 #
-# Multi-source (ArgoCD >= 2.6): chart from helm-chart/ at local.chart_revision
-# (HEAD for dev, v1.0.0 for prd); env values from environments/{env}/values.yaml
-# always at HEAD so config changes deploy without a chart version bump.
+# Multi-source: chart from helm-chart/ at local.chart_revision (HEAD for dev,
+# v1.0.0 for prd); env values from environments/{env}/values.yaml always at HEAD
+# so config changes deploy without a chart version bump.
 # $$values escapes the $ so Terraform passes $values literally to ArgoCD.
 resource "kubectl_manifest" "argocd_application" {
   yaml_body = <<-YAML

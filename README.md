@@ -31,7 +31,6 @@ Traffic flows:
 | Compute  | EKS 1.35 managed nodes   | AL2023, t3.medium, 2-10 nodes      |
 | Database | RDS PostgreSQL 17        | db.t4g.micro, Multi-AZ, gp3        |
 | Storage  | S3                       | Versioned, private                 |
-| Secrets  | AWS Secrets Manager      | Pulled into pods via ESO + IRSA    |
 | Network  | VPC 10.0.0.0/16          | 2 public + 2 private subnets, 2 AZ |
 
 ---
@@ -45,11 +44,11 @@ Traffic flows:
 | `locals.tf`                | AZ list, shared resource tags, OIDC provider URL, chart revision              |
 | `data.tf`                  | Reads available AZs and current AWS account ID from AWS                       |
 | `network.tf`               | VPC, subnets, IGW, NAT GW, route tables, RDS security group                  |
-| `compute.tf`               | EKS cluster, node group, OIDC provider, addons, ESO IRSA role                 |
+| `compute.tf`               | EKS cluster, node group, OIDC provider, addons, CloudWatch log group          |
 | `database.tf`              | RDS instance, subnet group, write-only password                               |
-| `storage.tf`               | S3 bucket, Secrets Manager secret skeleton                                    |
-| `addons.tf`                | Helm releases (nginx, cert-manager, ESO, ArgoCD) + CRD-backed K8s resources  |
-| `outputs.tf`               | kubectl config command, ArgoCD admin password, ESO role ARN, DB endpoint      |
+| `storage.tf`               | S3 bucket (versioned, private)                                                |
+| `addons.tf`                | Helm releases (nginx, cert-manager, ArgoCD) + CRD-backed K8s resources       |
+| `outputs.tf`               | kubectl config command, ArgoCD admin password, DB endpoint, S3 bucket name    |
 | `terraform.tfvars.example` | Copy to `terraform.tfvars` and fill in before running                         |
 
 ---
@@ -59,7 +58,7 @@ Traffic flows:
 - Terraform >= 1.11
 - AWS CLI configured - `aws sts get-caller-identity` should succeed
 - AWS identity with permissions: `eks:*`, `ec2:*`, `rds:*`, `s3:*`, `iam:*`,
-  `secretsmanager:*`, `elasticloadbalancing:*`
+  `logs:*`, `elasticloadbalancing:*`
 - `aws` CLI available in `PATH` - used by the Helm and kubectl providers for
   exec-based EKS auth (`aws eks get-token`)
 
@@ -119,7 +118,7 @@ terraform apply
 
 ## Post-deploy wiring
 
-`terraform apply` installs everything: EKS cluster, RDS, nginx, cert-manager, ESO,
+`terraform apply` installs everything: EKS cluster, RDS, nginx, cert-manager,
 ArgoCD, and the ArgoCD Application that deploys the spring-boot-api. No manual Helm
 steps required.
 
@@ -145,33 +144,6 @@ Watch the spring-boot-api sync:
 argocd login <argocd-server-ip>
 argocd app get spring-boot-api
 ```
-
-### Populate secrets in AWS Secrets Manager
-
-Terraform creates the secret with `REPLACE_ME` placeholder values. Fill in real secrets
-before the app can start. This is a one-time step - future `terraform apply` runs will
-not overwrite manual updates (`ignore_changes = [secret_string]`):
-
-```bash
-aws secretsmanager put-secret-value \
-  --secret-id /spring-boot-api/<env>/credentials \
-  --secret-string '{"APP_SECRET_KEY":"...","DB_PASSWORD":"...","JWT_SECRET":"..."}'
-```
-
-**Getting the DB password**: `password_wo` is write-only - Terraform applies it to RDS
-during `apply` but never stores its value in `.tfstate`. To set `DB_PASSWORD` in Secrets
-Manager, reset the RDS master password via the Console or CLI, then use that new value:
-
-```bash
-aws rds modify-db-instance \
-  --db-instance-identifier webapp-<env> \
-  --master-user-password '<new-password>' \
-  --apply-immediately
-```
-
-> Bump `db_password_version` in `terraform.tfvars` only when you want **Terraform** to
-> generate and apply a fresh random password. Do not bump it after a manual CLI reset -
-> that would overwrite your manually-set password on the next `terraform apply`.
 
 ### Destroying the environment
 
@@ -215,12 +187,6 @@ The code comment in `network.tf` shows how to extend to one NAT GW per AZ.
 kube-proxy) and `topologySpreadConstraints` with `kubernetes.io/hostname`. Fargate does not
 support DaemonSets, so EC2-backed managed node groups are required.
 
-**IRSA for ESO** - External Secrets Operator needs AWS credentials to read Secrets Manager.
-IRSA (IAM Roles for Service Accounts) lets the ESO pod exchange its Kubernetes ServiceAccount
-JWT for temporary AWS credentials via STS - no long-lived access keys stored anywhere.
-The OIDC trust policy is scoped to exactly one ServiceAccount:
-`system:serviceaccount:external-secrets:external-secrets`.
-
 **Kubernetes subnet tags** - the AWS Load Balancer Controller discovers subnets by tag.
 Public subnets need `kubernetes.io/role/elb = 1` for internet-facing LoadBalancers (nginx
 ingress). Private subnets need `kubernetes.io/role/internal-elb = 1` for internal ones.
@@ -230,17 +196,16 @@ Without these tags, `kubectl apply` succeeds but the LoadBalancer never gets an 
 Both dev and prd can be applied in the same AWS account without naming conflicts on IAM
 roles, RDS identifiers, or S3 buckets.
 
-**Helm add-ons in Terraform** - nginx, cert-manager, ESO, and ArgoCD are installed
-via `helm_release` resources rather than post-apply shell commands. This keeps the
-entire cluster in a single declarative apply. Trade-off: `terraform destroy` may fail
-if CRDs have finalizers on custom resources - delete the ArgoCD Application and
-ExternalSecret resources before destroying.
+**Helm add-ons in Terraform** - nginx, cert-manager, and ArgoCD are installed via
+`helm_release` resources rather than post-apply shell commands. This keeps the entire
+cluster in a single declarative apply. Trade-off: `terraform destroy` may fail if CRDs
+have finalizers on custom resources - delete the ArgoCD Application before destroying.
 
 **kubectl provider for CRD-backed resources** - `hashicorp/kubernetes` validates
 resource schemas at plan time, which fails for CRD-backed types (ClusterIssuer,
-ClusterSecretStore, Application) when the CRDs don't exist yet. `gavinbunney/kubectl`
-defers validation to apply time, so CRD-backed resources can be created in the same
-apply as the Helm release that installs their CRDs.
+Application) when the CRDs don't exist yet. `alekc/kubectl` defers validation to apply
+time, so CRD-backed resources can be created in the same apply as the Helm release that
+installs their CRDs.
 
 **In-cluster ArgoCD destination** - the ArgoCD Application uses
 `destination.server: https://kubernetes.default.svc` (the cluster ArgoCD runs on)

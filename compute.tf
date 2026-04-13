@@ -38,7 +38,18 @@ resource "aws_eks_cluster" "main" {
     # Default (empty) allows 0.0.0.0/0 - acceptable for dev, tighten for prd.
   }
 
-  depends_on = [aws_iam_role_policy_attachment.eks_cluster]
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_cluster,
+    aws_cloudwatch_log_group.eks,
+  ]
+}
+
+# Explicit log group with 30-day retention.
+# Without this, EKS auto-creates the group with infinite retention (unbounded cost).
+# Name must match the pattern EKS expects: /aws/eks/<cluster-name>/cluster.
+resource "aws_cloudwatch_log_group" "eks" {
+  name              = "/aws/eks/${var.cluster_name}/cluster"
+  retention_in_days = 30
 }
 
 # OIDC provider enables IRSA: K8s ServiceAccounts can assume IAM roles
@@ -132,42 +143,4 @@ resource "aws_eks_addon" "kube_proxy" {
   cluster_name                = aws_eks_cluster.main.name
   addon_name                  = "kube-proxy"
   resolve_conflicts_on_update = "OVERWRITE"
-}
-
-# --- IRSA: External Secrets Operator ---
-# Grants ESO permission to read from AWS Secrets Manager.
-# After installing ESO, annotate its ServiceAccount:
-#   kubectl annotate sa external-secrets -n external-secrets \
-#     eks.amazonaws.com/role-arn=$(terraform output -raw eso_role_arn)
-
-resource "aws_iam_role" "eso" {
-  name = "${var.project}-${var.environment}-eso"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Federated = aws_iam_openid_connect_provider.eks.arn }
-      Action    = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        StringEquals = {
-          "${local.oidc_provider}:sub" = "system:serviceaccount:external-secrets:external-secrets"
-          "${local.oidc_provider}:aud" = "sts.amazonaws.com"
-        }
-      }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "eso" {
-  role = aws_iam_role.eso.name
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-      Resource = "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:/spring-boot-api/*"
-    }]
-  })
 }

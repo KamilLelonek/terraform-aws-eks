@@ -9,9 +9,6 @@ locals {
     ManagedBy   = "terraform"
   }
 
-  # Stripped OIDC issuer URL used in IRSA trust policy conditions
-  oidc_provider = trimprefix(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://")
-
   # Helm chart revision for the ArgoCD Application.
   # dev tracks HEAD for fast feedback; prd is pinned to a tag for explicit promotion.
   chart_revision = var.environment == "prd" ? "v1.0.0" : "HEAD"
