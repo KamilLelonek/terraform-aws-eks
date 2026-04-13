@@ -11,6 +11,8 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "public" {
   count             = length(local.azs)
   vpc_id            = aws_vpc.main.id
+  # cidrsubnet("10.0.0.0/16", 8, index) adds 8 bits -> /24 (256 addresses each)
+  # index 0 -> 10.0.0.0/24, index 1 -> 10.0.1.0/24
   cidr_block        = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)
   availability_zone = local.azs[count.index]
 
@@ -31,6 +33,8 @@ resource "aws_subnet" "public" {
 resource "aws_subnet" "private" {
   count             = length(local.azs)
   vpc_id            = aws_vpc.main.id
+  # offset + 10 keeps private ranges non-overlapping with public
+  # index 0 -> 10.0.10.0/24, index 1 -> 10.0.11.0/24
   cidr_block        = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 10)
   availability_zone = local.azs[count.index]
 
