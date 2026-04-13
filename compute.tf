@@ -97,7 +97,11 @@ resource "aws_eks_node_group" "main" {
   node_role_arn   = aws_iam_role.eks_nodes.arn
   subnet_ids      = aws_subnet.private[*].id
 
-  ami_type       = "AL2023_x86_64_STANDARD"
+  ami_type = "AL2023_x86_64_STANDARD"
+  # t3.medium (2 vCPU, 4 GB): sufficient for this workload (nginx, cert-manager,
+  # ArgoCD, spring-boot-api). Size up if pod resource requests exceed node capacity
+  # or if the Cluster Autoscaler frequently hits the ceiling. Graviton (t4g) gives
+  # ~20% better price-performance if all container images are multi-arch.
   instance_types = ["t3.medium"]
 
   scaling_config {
