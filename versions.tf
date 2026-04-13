@@ -15,7 +15,6 @@ terraform {
   # No DynamoDB locking - safe for single operator.
   # Add: dynamodb_table = "terraform-locks" for team concurrent use.
   backend "s3" {
-    bucket  = "my-terraform-state-bucket" # replace
     region  = "eu-central-1"
     encrypt = true
   }

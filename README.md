@@ -68,16 +68,16 @@ Create it manually once and reuse across all environments:
 
 ```bash
 aws s3api create-bucket \
-  --bucket my-terraform-state-bucket \
+  --bucket inpost-terraform-state \
   --region eu-central-1 \
   --create-bucket-configuration LocationConstraint=eu-central-1
 
 aws s3api put-bucket-versioning \
-  --bucket my-terraform-state-bucket \
+  --bucket inpost-terraform-state \
   --versioning-configuration Status=Enabled
 ```
 
-Then update `bucket = "my-terraform-state-bucket"` in `versions.tf`.
+The bucket name is already set in `backends/dev.hcl` and `backends/prd.hcl`.
 
 ---
 

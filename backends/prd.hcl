@@ -1,1 +1,2 @@
-key = "webapp/prd/terraform.tfstate"
+bucket = "inpost-terraform-state"
+key    = "webapp/prd/terraform.tfstate"
