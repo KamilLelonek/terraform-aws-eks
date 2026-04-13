@@ -2,9 +2,8 @@
 # Installed via Helm into the EKS cluster created in compute.tf.
 # wait = true blocks Terraform until each release is healthy before moving on.
 #
-# ArgoCD config (ClusterIssuers, AppProject, ApplicationSet) lives in the
-# spring-boot-api repo under argocd/ and is applied separately after infra is ready.
-# See spring-boot-api/README.md for bootstrap steps.
+# ArgoCD config (ClusterIssuers, AppProject, ApplicationSet) is managed by the
+# application repo and applied separately after infra is ready.
 
 # --- nginx Ingress Controller ---
 # Creates a LoadBalancer Service that AWS provisions as an NLB (Layer 4).

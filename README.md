@@ -118,7 +118,7 @@ terraform apply
 
 `terraform apply` provisions the infrastructure: EKS cluster, RDS, S3, nginx,
 cert-manager, and ArgoCD. ArgoCD config (ClusterIssuers, AppProject, ApplicationSet)
-is managed separately in the spring-boot-api repo.
+is managed by the application repo and applied separately.
 
 Configure kubectl after apply:
 
@@ -136,16 +136,16 @@ terraform output -raw argocd_admin_password | bash
 kubectl get svc argocd-server -n argocd
 ```
 
-Bootstrap ArgoCD config from the spring-boot-api repo (clone it alongside this repo
-or adjust the paths):
+Bootstrap ArgoCD config from the application repo (AppProject, ClusterIssuers,
+ApplicationSet):
 
 ```bash
-kubectl apply -f <spring-boot-api>/argocd/argocd-project.yaml
-kubectl apply -f <spring-boot-api>/argocd/cluster-issuers.yaml
-kubectl apply -f <spring-boot-api>/argocd/applicationset.yaml
+kubectl apply -f argocd/argocd-project.yaml
+kubectl apply -f argocd/cluster-issuers.yaml
+kubectl apply -f argocd/applicationset.yaml
 ```
 
-Watch the spring-boot-api sync:
+Watch application syncs:
 
 ```bash
 argocd login <argocd-server-ip>
@@ -190,9 +190,9 @@ Intel `db.t3.micro`. Graviton is ARM-based; PostgreSQL is fully compatible.
 for two). Trade-off: if AZ-a goes down, private subnets in AZ-b lose internet egress.
 The code comment in `network.tf` shows how to extend to one NAT GW per AZ.
 
-**EKS managed nodes over Fargate** - the spring-boot-api chart uses DaemonSets (vpc-cni,
-kube-proxy) and `topologySpreadConstraints` with `kubernetes.io/hostname`. Fargate does not
-support DaemonSets, so EC2-backed managed node groups are required.
+**EKS managed nodes over Fargate** - nginx ingress and cluster networking (vpc-cni,
+kube-proxy) run as DaemonSets, which Fargate does not support. EC2-backed managed node
+groups are required for any DaemonSet-based workload.
 
 **Kubernetes subnet tags** - the AWS Load Balancer Controller discovers subnets by tag.
 Public subnets need `kubernetes.io/role/elb = 1` for internet-facing LoadBalancers (nginx
@@ -206,16 +206,9 @@ roles, RDS identifiers, or S3 buckets.
 **Helm add-ons in Terraform** - nginx, cert-manager, and ArgoCD are installed via
 `helm_release` resources rather than post-apply shell commands. This keeps infrastructure
 in a single declarative apply. ArgoCD config (ClusterIssuers, AppProject, ApplicationSet)
-lives in the spring-boot-api repo: clear separation between infra and application setup.
+lives in the application repo: clear separation between infra and application setup.
 Trade-off: `terraform destroy` may fail if Helm releases have finalizers on custom
 resources - delete ArgoCD Applications before destroying.
-
-**In-cluster ArgoCD destination** - the ArgoCD Application uses
-`destination.server: https://kubernetes.default.svc` (the cluster ArgoCD runs on)
-instead of a registered external cluster URL. This avoids the `argocd cluster add`
-step and works with no external DNS. The ApplicationSet in `spring-boot-api/argocd/`
-covers the alternative multi-cluster pattern where one central ArgoCD manages both
-dev and prd.
 
 **No DynamoDB state locking** - safe for a single operator. For teams, add
 `dynamodb_table = "terraform-locks"` to the backend block and create the table first.
