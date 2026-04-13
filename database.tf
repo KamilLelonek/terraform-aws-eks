@@ -29,9 +29,9 @@ resource "aws_db_instance" "main" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  multi_az            = true  # Synchronous standby replica in second AZ; ~60s automatic failover
+  multi_az            = true # Synchronous standby replica in second AZ; ~60s automatic failover
   storage_encrypted   = true
-  deletion_protection = true  # Requires manual disable before destroy
+  deletion_protection = true # Requires manual disable before destroy
 
   backup_retention_period   = 7
   final_snapshot_identifier = "${var.project}-${var.environment}-final-snapshot"
