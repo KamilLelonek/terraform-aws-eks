@@ -5,9 +5,12 @@
 # after their CRDs exist.
 
 # --- nginx Ingress Controller ---
-# Provisions an internet-facing AWS NLB in the public subnets.
-# The subnets are tagged kubernetes.io/role/elb = 1 (see network.tf) so the
-# AWS Load Balancer Controller can discover them automatically.
+# Creates a LoadBalancer Service that AWS provisions as an NLB (Layer 4).
+# NLB is the right choice here: nginx handles all L7 concerns (TLS termination,
+# path routing, virtual hosts), so the AWS load balancer only needs to forward
+# TCP. An ALB in front of nginx would be redundant L7 processing.
+# The public subnets are tagged kubernetes.io/role/elb = 1 (see network.tf)
+# so AWS can discover them when provisioning the NLB.
 resource "helm_release" "ingress_nginx" {
   name             = "ingress-nginx"
   repository       = "https://kubernetes.github.io/ingress-nginx"
