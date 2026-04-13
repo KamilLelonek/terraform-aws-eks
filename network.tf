@@ -1,4 +1,9 @@
 resource "aws_vpc" "main" {
+  # 10.0.0.0/16 = 65,536 addresses. Subnets carved via cidrsubnet:
+  #   public:  10.0.0.0/24, 10.0.1.0/24   (count.index 0, 1)
+  #   private: 10.0.10.0/24, 10.0.11.0/24 (count.index + 10)
+  # Gap between 1 and 10 leaves room for extra public subnets (e.g. 3rd AZ)
+  # without renumbering private ones.
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
 }
