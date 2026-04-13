@@ -136,12 +136,13 @@ terraform output -raw argocd_admin_password | bash
 kubectl get svc argocd-server -n argocd
 ```
 
-Bootstrap ArgoCD config from the spring-boot-api repo:
+Bootstrap ArgoCD config from the spring-boot-api repo (clone it alongside this repo
+or adjust the paths):
 
 ```bash
-kubectl apply -f ../spring-boot-api/argocd/argocd-project.yaml
-kubectl apply -f ../spring-boot-api/argocd/cluster-issuers.yaml
-kubectl apply -f ../spring-boot-api/argocd/applicationset.yaml
+kubectl apply -f <spring-boot-api>/argocd/argocd-project.yaml
+kubectl apply -f <spring-boot-api>/argocd/cluster-issuers.yaml
+kubectl apply -f <spring-boot-api>/argocd/applicationset.yaml
 ```
 
 Watch the spring-boot-api sync:
