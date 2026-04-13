@@ -28,11 +28,6 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.8"
     }
-    # TLS provider: fetches EKS OIDC issuer certificate thumbprint for IRSA
-    tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.2"
-    }
     # helm v3 migrated to Terraform Plugin Framework (Protocol v6).
     # Breaking changes from v2: kubernetes/exec/set/set_sensitive blocks are now
     # object attributes (= { }) and set is a list of objects (= [{ }]).

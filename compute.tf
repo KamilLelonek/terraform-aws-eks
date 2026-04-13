@@ -52,18 +52,6 @@ resource "aws_cloudwatch_log_group" "eks" {
   retention_in_days = 30
 }
 
-# OIDC provider enables IRSA: K8s ServiceAccounts can assume IAM roles
-# without static credentials via STS AssumeRoleWithWebIdentity.
-data "tls_certificate" "eks" {
-  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
-}
-
-resource "aws_iam_openid_connect_provider" "eks" {
-  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
-}
-
 # --- Node Group IAM ---
 
 resource "aws_iam_role" "eks_nodes" {
