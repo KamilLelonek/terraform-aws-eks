@@ -41,10 +41,10 @@ Traffic flows:
 |----------------------------|-------------------------------------------------------------------------------|
 | `versions.tf`              | Terraform version constraint, S3 backend, provider pins and provider blocks   |
 | `variables.tf`             | All inputs with types, defaults, and descriptions                             |
-| `locals.tf`                | AZ list, shared resource tags, OIDC provider URL, chart revision              |
+| `locals.tf`                | AZ list and shared resource tags                                              |
 | `data.tf`                  | Reads available AZs and current AWS account ID from AWS                       |
 | `network.tf`               | VPC, subnets, IGW, NAT GW, route tables, RDS security group                  |
-| `compute.tf`               | EKS cluster, node group, OIDC provider, addons, CloudWatch log group          |
+| `compute.tf`               | EKS cluster, IAM roles, node group, EKS addons, CloudWatch log group          |
 | `database.tf`              | RDS instance, subnet group, write-only password                               |
 | `storage.tf`               | S3 bucket (versioned, private)                                                |
 | `addons.tf`                | Helm releases: nginx ingress, cert-manager, ArgoCD                            |
@@ -216,3 +216,52 @@ resources - delete ArgoCD Applications before destroying.
 **SSE-S3 omitted** - AWS encrypts all S3 objects by default since April 2023. Explicitly
 configuring SSE-S3 is redundant. Upgrade to SSE-KMS only if you need customer-managed keys
 for compliance.
+
+---
+
+## FAQ
+
+**Why AWS instead of GCP (which the assessment notes as an asset)?**
+
+AWS was the deliberate choice. The tooling (EKS, RDS, S3, IAM IRSA) maps directly to the
+requirements and is widely used in production. The assessment states the cloud choice is up
+to the candidate; AWS expertise is the stronger demonstration here.
+
+**Why no Cluster Autoscaler?**
+
+The node group is configured for CA: `scaling_config` sets the min/max bounds and the
+`lifecycle { ignore_changes }` block prevents Terraform from resetting the desired count on
+every apply. To complete the setup, add CA as a `helm_release` in `addons.tf` with an IRSA
+IAM role that allows `autoscaling:DescribeAutoScalingGroups` and related actions. Omitted
+here to keep scope focused on the infrastructure layer rather than ops tooling.
+
+**Why a single NAT Gateway instead of one per AZ?**
+
+Cost. One NAT Gateway costs ~$32/month; one per AZ costs ~$64/month. The trade-off is that
+if AZ-a fails, private subnets in AZ-b lose internet egress. The code comment in
+`network.tf` shows the exact change needed to extend to per-AZ NAT Gateways.
+
+**Why `password_wo` (write-only) instead of storing the password in state?**
+
+The Terraform state file is the most common source of leaked secrets in AWS environments.
+`password_wo` (Terraform >= 1.11, AWS provider >= 5.80) applies the generated password to
+RDS without writing its value to `.tfstate`. The trade-off: the password cannot be
+retrieved from state after apply. Retrieve it from AWS Secrets Manager or the `random_password`
+resource before destroying the workspace if you need it.
+
+**Why no DynamoDB state locking?**
+
+Safe for a single operator. For teams, add `dynamodb_table = "terraform-locks"` to the
+backend config in `versions.tf` and create the table once before the first `terraform init`.
+
+**Why only 2 Availability Zones?**
+
+Two AZs satisfy the HA requirement (RDS Multi-AZ, node group spans both) at lower cost and
+complexity than three. Extending to 3 AZs requires only changing the `slice` count in
+`locals.tf` from `0, 2` to `0, 3` and adding a third CIDR offset in `network.tf`.
+
+**Why `endpoint_public_access = true` on the EKS cluster?**
+
+Convenience for this assessment. In production, restrict `public_access_cidrs` to known
+operator IP ranges and rely on `endpoint_private_access` for in-cluster traffic. The comment
+in `compute.tf` flags this explicitly.
